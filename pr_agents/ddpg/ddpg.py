@@ -18,10 +18,10 @@ class DDPGAgent:
         self.max_action = env.action_space.high[0]
         self.min_action = env.action_space.low[0]
         
-        self.actor = ActorNetwork(n_actions=n_actions, name='actor')
-        self.critic = CriticNetwork(name='critic')
-        self.target_actor = ActorNetwork(n_actions=n_actions, name='target_actor')
-        self.target_critic = CriticNetwork(name='target_critic')
+        self.actor = ActorNetwork(fc1_dims=fc1, fc2_dims=fc2, n_actions=n_actions, name='actor')
+        self.critic = CriticNetwork(fc1_dims=fc1, fc2_dims=fc2, name='critic')
+        self.target_actor = ActorNetwork(fc1_dims=fc1, fc2_dims=fc2, n_actions=n_actions, name='target_actor')
+        self.target_critic = CriticNetwork(fc1_dims=fc1, fc2_dims=fc2, name='target_critic')
 
         self.actor.compile(optimizer=Adam(learning_rate=alpha))
         self.critic.compile(optimizer=Adam(learning_rate=beta))
@@ -71,6 +71,7 @@ class DDPGAgent:
                     mean=0.0, stddev=self.noise)
         # note that if the environment has an action > 1, we have to multiply by
         # max action at some point
+        actions = tf.math.multiply(actions, self.max_action)
         actions = tf.clip_by_value(actions, self.min_action, self.max_action)
 
         return actions[0]
@@ -97,6 +98,12 @@ class DDPGAgent:
 
         critic_network_gradient = tape.gradient(critic_loss,
                                             self.critic.trainable_variables)
+
+        norm = 0.1
+
+        critic_network_gradient = [tf.clip_by_norm(g, norm) 
+                                    for g in critic_network_gradient]
+
         self.critic.optimizer.apply_gradients(zip(
             critic_network_gradient, self.critic.trainable_variables))
 
@@ -107,6 +114,11 @@ class DDPGAgent:
 
         actor_network_gradient = tape.gradient(actor_loss, 
                                     self.actor.trainable_variables)
+    
+        
+        actor_network_gradient = [tf.clip_by_norm(g, norm) 
+                                    for g in actor_network_gradient]
+
         self.actor.optimizer.apply_gradients(zip(
             actor_network_gradient, self.actor.trainable_variables))
 
